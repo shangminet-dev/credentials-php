@@ -25,6 +25,47 @@ class RequestTest extends TestCase
         static::assertTrue(isset($options['headers']['User-Agent']));
     }
 
+    /**
+     * @dataProvider debugEnvironmentValues
+     */
+    public function testCommonOptionsWithDebugEnvironment($value, $expectedDebug)
+    {
+        $original = getenv('DEBUG');
+        $value === null ? putenv('DEBUG') : putenv('DEBUG=' . $value);
+        set_error_handler(static function ($severity, $message, $file, $line) {
+            throw new \ErrorException($message, 0, $severity, $file, $line);
+        }, E_ALL);
+
+        try {
+            $options = Request::commonOptions();
+            static::assertSame($expectedDebug, isset($options['debug']) && $options['debug']);
+            static::assertFalse($options['http_errors']);
+            static::assertSame(5, $options['connect_timeout']);
+            static::assertSame(5, $options['read_timeout']);
+        } finally {
+            restore_error_handler();
+            $original === false ? putenv('DEBUG') : putenv('DEBUG=' . $original);
+        }
+    }
+
+    public static function debugEnvironmentValues()
+    {
+        return [
+            'not set' => [null, false],
+            'empty' => ['', false],
+            'null literal' => ['null', false],
+            'parenthesized null' => ['(null)', false],
+            'false literal' => ['false', false],
+            'true literal' => ['true', false],
+            'zero' => ['0', false],
+            'off' => ['off', false],
+            'sdk' => ['sdk', true],
+            'uppercase SDK' => ['SDK', true],
+            'mixed case SDK' => ['sDk', true],
+            'quoted SDK' => ['"SDK"', true],
+        ];
+    }
+
     public function testUuid()
     {
         // Assert
